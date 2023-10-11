@@ -1,0 +1,109 @@
+{{ if .Values.mailhog.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-mailhog
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ .Release.Name }}-mailhog-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+{{ end }}
+---
+{{ if .Values.mailhog.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-mailhog
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ .Release.Name }}-mailhog-smtp-service
+spec:
+  ports:
+  - protocol: "TCP"
+    port: {{ .Values.mailhog.env.SMTP_PORT }}
+    targetPort: {{ .Values.mailhog.env.SMTP_PORT }}
+  selector:
+    app.kubernetes.io/name: {{ .Release.Name }}-mailhog
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{ end }}
+---
+{{ if .Values.mailhog.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-mailhog
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ .Release.Name }}-mailhog-service
+spec:
+  ports:
+  - protocol: {{ .Values.mailhog.service.protocol | default "TCP" }}
+    port: {{ .Values.mailhog.service.port }}
+    targetPort: {{ .Values.mailhog.service.targetPort }}
+  selector:
+    app.kubernetes.io/name: {{ .Release.Name }}-mailhog
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{ end }}    
+---
+{{ if .Values.mailhog.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-mailhog
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ .Release.Name }}-mailhog
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-mailhog
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-mailhog
+        app.kubernetes.io/name: {{ .Release.Name }}-mailhog
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - image: {{ .Values.mailhog.container.image }}
+          name: {{ .Release.Name }}-mailhog
+          resources: {}
+          ports:
+            - name: http
+              containerPort: {{ .Values.mailhog.service.targetPort }}
+              protocol: {{ .Values.mailhog.service.protocol | default "TCP" }}
+            - name: smtp
+              containerPort: {{ .Values.mailhog.env.SMTP_PORT }}
+              protocol: "TCP"  
+          env:
+            - name: SMTP_HOST
+              value: {{ .Values.mailhog.env.SMTP_HOST }}
+            - name: SMTP_PASS
+              value: {{ .Values.mailhog.env.SMTP_PASS | quote }}
+            - name: SMTP_PORT
+              value: {{ .Values.mailhog.env.SMTP_PORT | quote }}
+            - name: SMTP_SECURE
+              value: {{ .Values.mailhog.env.SMTP_SECURE | quote }}
+            - name: SMTP_SENDER
+              value: {{ .Values.mailhog.env.SMTP_SENDER | quote }}
+            - name: SMTP_USER
+              value: {{ .Values.mailhog.env.SMTP_USER | quote }}
+          volumeMounts:
+            - mountPath: /maildir
+              name: mailhog-claim
+      restartPolicy: Always
+      volumes:
+        - name: mailhog-claim
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-mailhog-claim
+status: {}
+{{ end }}

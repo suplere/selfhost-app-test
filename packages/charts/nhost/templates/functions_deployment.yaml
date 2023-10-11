@@ -1,0 +1,153 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-root-node-modules
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
+status: {}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-functions-node-modules
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
+status: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-functions
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ .Release.Name }}-functions-service
+spec:
+  ports:
+  - protocol: {{ .Values.functions.service.protocol | default "TCP" }}
+    port: {{ .Values.functions.service.port }}
+    targetPort: {{ .Values.functions.service.targetPort }}
+    name: functions
+  selector:
+    app.kubernetes.io/name: {{ .Release.Name }}-functions
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: functions
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-functions
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-functions
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-functions
+        app.kubernetes.io/name: {{ .Release.Name }}-functions
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - image: {{ .Values.functions.container.image }}
+          ports:
+          - name: functions
+            containerPort: {{ .Values.functions.service.targetPort }}
+            protocol: {{ .Values.auth.service.protocol | default "TCP" }}
+          env:
+            - name: HASURA_GRAPHQL_ADMIN_SECRET
+              value: {{ .Values.hasura.env.HASURA_GRAPHQL_ADMIN_SECRET | quote }}
+            - name: HASURA_GRAPHQL_DATABASE_URL
+              value: "postgres://{{ .Values.postgres.env.POSTGRES_USER }}:{{ .Values.postgres.env.POSTGRES_PASSWORD }}@{{ .Release.Name }}-postgres-service:{{ .Values.postgres.service.targetPort }}/{{ .Values.postgres.env.POSTGRES_DB | default .Release.Name }}"
+            - name: HASURA_GRAPHQL_GRAPHQL_URL
+              value: http://{{ .Release.Name }}-hasura-service:{{ .Values.hasura.service.port }}/v1/graphql
+            - name: HASURA_GRAPHQL_JWT_SECRET
+              value: '{"key":"{{ .Values.hasura.env.HASURA_GRAPHQL_JWT_SECRET_KEY }}","type":"{{ .Values.hasura.env.HASURA_GRAPHQL_JWT_SECRET_TYPE }}"}'
+            # APP ENV FOR ALL PARTS NHOST
+            - name: NHOST_ADMIN_SECRET
+              value: {{ .Values.hasura.env.HASURA_GRAPHQL_ADMIN_SECRET | quote }}
+            # NHOST PART URLS  
+            - name: NHOST_AUTH_URL
+              value: "https://{{ .Release.Name }}.auth.{{ .Values.domain }}"
+            - name: NHOST_BACKEND_URL
+              # value: "https://{{ .Release.Name }}.{{ .Values.domain }}"
+            - name: NHOST_FUNCTIONS_URL
+              value: "https://{{ .Release.Name }}.functions.{{ .Values.domain }}"
+            - name: NHOST_GRAPHQL_URL
+              value: "https://{{ .Release.Name }}.graphql.{{ .Values.domain }}"
+            - name: NHOST_HASURA_URL
+              value: "https://{{ .Release.Name }}.hasura.{{ .Values.domain }}"
+            - name: NHOST_STORAGE_URL
+              value: "https://{{ .Release.Name }}.storage.{{ .Values.domain }}"
+            - name: NHOST_JWT_SECRET
+              value: '{"key":"{{ .Values.hasura.env.HASURA_GRAPHQL_JWT_SECRET_KEY }}","type":"{{ .Values.hasura.env.HASURA_GRAPHQL_JWT_SECRET_TYPE }}"}'
+            - name: NHOST_REGION
+            - name: NHOST_SUBDOMAIN
+            - name: NHOST_WEBHOOK_SECRET
+              value: {{ .Values.hasura.env.NHOST_WEBHOOK_SECRET | quote }}
+            {{- range $key, $val := .Values.app.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}      
+          livenessProbe:
+            exec:
+              command:
+                - wget
+                - --spider
+                - -S
+                - http://localhost:3000/healthz
+            initialDelaySeconds: 600
+            periodSeconds: 5
+            timeoutSeconds: 600
+          name: {{ .Release.Name }}-functions
+          resources: {}
+          volumeMounts:
+            - mountPath: /opt/project
+              name: project-folder
+            - mountPath: /opt/project/node_modules
+              name: root-node-modules
+            - mountPath: /opt/project/functions/node_modules
+              name: functions-node-modules
+      restartPolicy: Always
+      initContainers:
+        - name: init-clone-repo
+          image: alpine/git
+          command: ["/bin/sh","-c"]
+          args: ["git clone https://${GIT_USERNAME}:${GIT_PASSWORD}@{{ .Values.git.repo }} /usr/repo && cp -a /usr/repo{{ .Values.git.path }}/* /usr/share"]    
+          imagePullPolicy: Always
+          env:
+          - name: GIT_USERNAME
+            valueFrom:
+              secretKeyRef:
+                key: username
+                name: gitea-secret
+          - name: GIT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: password
+                name: gitea-secret
+          volumeMounts:
+          - mountPath: /usr/share
+            name: project-folder
+      volumes:
+        - name: project-folder
+          emptyDir: {}
+        - name: root-node-modules
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-root-node-modules
+        - name: functions-node-modules
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-functions-node-modules
+status: {}

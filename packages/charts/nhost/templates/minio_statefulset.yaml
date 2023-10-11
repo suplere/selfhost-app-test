@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-minio-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.minio.persistent.class }}
+  resources:
+    requests:
+      storage: {{ .Values.minio.persistent.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-minio
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ .Release.Name }}-minio-service
+spec:
+  ports:
+  - protocol: "TCP"
+    port: {{ .Values.minio.container.minio_port }}
+    targetPort: {{ .Values.minio.container.minio_port }}
+    name: auth
+  selector:
+    app.kubernetes.io/name: {{ .Release.Name }}-minio
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-minio
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ .Release.Name }}-minio
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-minio
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-minio
+        app.kubernetes.io/name: {{ .Release.Name }}-minio
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: {{ .Release.Name }}-minio
+          image: {{ .Values.minio.container.image }}
+          command:
+          - /bin/bash
+          - -c
+          args: 
+          - mkdir -p /data/nhost && /opt/bin/minio server --address :{{ .Values.minio.container.minio_port }} --console-address :{{ .Values.minio.container.console_port }} /data
+          env:
+            - name: MINIO_ROOT_PASSWORD
+              value: {{ .Values.minio.env.MINIO_ROOT_PASSWORD}}
+            - name: MINIO_ROOT_USER
+              value: {{ .Values.minio.env.MINIO_ROOT_USER}}
+            
+          volumeMounts:
+          - name: minio-data
+            mountPath: /data
+          ports:
+            - name: minio
+              containerPort: {{ .Values.minio.container.minio_port }}
+              protocol: TCP
+            - name: console
+              containerPort: {{ .Values.minio.container.console_port }}
+              protocol: TCP  
+        #nodeSelector:
+        #  kubernetes.io/hostname: kubealpha.local # Specify a node label associated to the Worker Node on which you want to deploy the pod.
+      volumes:
+      - name: minio-data
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-minio-pvc

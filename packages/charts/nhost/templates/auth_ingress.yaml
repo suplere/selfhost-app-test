@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-auth-ingress
+  annotations:
+    spec.ingressClassName: traefik
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  rules:
+    - host: {{ .Release.Name }}.auth.{{ .Values.domain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-auth-service
+                port:
+                  number: {{ .Values.auth.service.port }}
+  tls:
+    - secretName: {{ .Release.Name }}-auth-tls
+      hosts:
+        - {{ .Release.Name }}.{{ .Values.domain }}

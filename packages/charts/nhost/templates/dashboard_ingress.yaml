@@ -1,0 +1,25 @@
+{{ if and .Values.dashboard.enabled .Values.dashboard.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-dashboard-ingress
+  annotations:
+    spec.ingressClassName: traefik
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  rules:
+    - host: {{ .Release.Name }}.dashboard.{{ .Values.domain }}
+      http:
+        paths:
+          - path: / 
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-dashboard-service
+                port:
+                  number: {{ .Values.dashboard.service.port }}
+  tls:
+    - secretName: {{ .Release.Name }}-dashboard-tls
+      hosts:
+        - {{ .Release.Name }}.dashboard.{{ .Values.domain }}
+{{ end }}

@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-init-db-config
+data:
+  init-db.sql: |
+    -- auth schema
+    CREATE SCHEMA IF NOT EXISTS auth;
+    CREATE SCHEMA IF NOT EXISTS storage;
+    -- https://github.com/hasura/graphql-engine/issues/3657
+    CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
+    CREATE EXTENSION IF NOT EXISTS citext WITH SCHEMA public;
+    CREATE OR REPLACE FUNCTION public.set_current_timestamp_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$
+    declare _new record;
+    begin _new := new;
+    _new."updated_at" = now();
+    return _new;
+    end;
+    $$;
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-postgres-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.postgres.persistent.class }}
+  resources:
+    requests:
+      storage: {{ .Values.postgres.persistent.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-postgres-service
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-postgres
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  ports:
+    - protocol: {{ .Values.postgres.service.protocol | default "TCP" }}
+      port: {{ .Values.postgres.service.port }}
+      targetPort: {{ .Values.postgres.service.targetPort }}
+      name: postgres
+  selector:
+    app.kubernetes.io/name: {{ .Release.Name }}-postgres
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---    
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-postgres
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-postgres
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-postgres
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-postgres
+        app.kubernetes.io/name: {{ .Release.Name }}-postgres
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: {{ .Release.Name }}-postgres
+          image: {{ .Values.postgres.container.image }}
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready -U postgres
+                - -d
+                - postgres
+                - -q
+            initialDelaySeconds: 60
+            periodSeconds: 5
+            timeoutSeconds: 60
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.env.POSTGRES_USER }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.postgres.env.POSTGRES_PASSWORD }}
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.env.POSTGRES_DB | default .Release.Name }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/
+          ports:
+            - name: postgresql
+              containerPort: {{ .Values.postgres.service.targetPort }}
+              protocol: {{ .Values.postgres.service.protocol | default "TCP" }}
+          volumeMounts:
+            - name: postgres-volume
+              mountPath: /var/lib/postgresql/
+            - name: init-script
+              mountPath: /docker-entrypoint-initdb.d/init-db.sql
+              subPath: init-db.sql
+              readOnly: true    
+      volumes:
+        - name: postgres-volume
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-postgres-pvc
+        - name: init-script
+          configMap:
+            name: {{ .Release.Name }}-init-db-config

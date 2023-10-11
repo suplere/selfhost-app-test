@@ -1,21 +1,36 @@
-import { AuthErrorPayload, NhostClient, NhostSession } from '@nhost/nhost-js'
+import { AuthErrorPayload, NhostClient, NhostClientConstructorParams, NhostSession } from '@nhost/nhost-js'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { type StateFrom } from 'xstate/lib/types'
 import { waitFor } from 'xstate/lib/waitFor'
 
 export const NHOST_SESSION_KEY = 'nhost-session'
+const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL
+const GRAPHQL_URL = process.env.NEXT_PUBLIC_GRAPHQL_URL
+const STORAGE_URL = process.env.NEXT_PUBLIC_STORAGE_URL
+const FUNCTION_URL = process.env.NEXT_PUBLIC_FUNCTION_URL
+const SUBDOMAIN = process.env.NEXT_PUBLIC_NHOST_SUBDOMAIN || "local"
+const REGION = process.env.NEXT_PUBLIC_NHOST_REGION
+
+export const getConfig = ():NhostClientConstructorParams => {
+  if (AUTH_URL && GRAPHQL_URL && STORAGE_URL && FUNCTION_URL)
+  return {
+    authUrl: AUTH_URL,
+    graphqlUrl: GRAPHQL_URL,
+    storageUrl: STORAGE_URL,
+    functionsUrl: FUNCTION_URL,
+  }
+  return {
+    subdomain: SUBDOMAIN,
+    region: REGION
+  }
+} 
 
 export const getNhost = async (request?: NextRequest) => {
   const $cookies = request?.cookies || cookies()
 
   const nhost = new NhostClient({
-    // subdomain: process.env.NEXT_PUBLIC_NHOST_SUBDOMAIN || "local",
-    // region: process.env.NEXT_PUBLIC_NHOST_REGION,
-    authUrl: process.env.NEXT_PUBLIC_AUTH_URL,
-    graphqlUrl: process.env.NEXT_PUBLIC_GRAPHQL_URL,
-    storageUrl: process.env.NEXT_PUBLIC_STORAGE_URL,
-    functionsUrl: process.env.NEXT_PUBLIC_FUNCTION_URL,
+    ...getConfig(),
     start: false
   })
 

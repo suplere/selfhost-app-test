@@ -1,19 +1,10 @@
 'use client'
 
-import { NhostClient } from '@nhost/nhost-js'
 import { deleteTodo, updateTodo } from '@server-actions/todos'
+import { nhost } from '@utils/nhost-clientSide'
 import Link from 'next/link'
 import { useState } from 'react'
 import { twMerge } from 'tailwind-merge'
-
-const nhost = new NhostClient({
-  // subdomain: process.env.NEXT_PUBLIC_NHOST_SUBDOMAIN || 'local',
-  // region: process.env.NEXT_PUBLIC_NHOST_REGION,
-  authUrl: process.env.NEXT_PUBLIC_AUTH_URL,
-  graphqlUrl: process.env.NEXT_PUBLIC_GRAPHQL_URL,
-  storageUrl: process.env.NEXT_PUBLIC_STORAGE_URL,
-  functionsUrl: process.env.NEXT_PUBLIC_FUNCTION_URL,
-})
 
 export interface Todo {
   id: string
@@ -77,7 +68,7 @@ const TodoItem = ({ todo }: { todo: Todo }) => {
         </Link>
       )}
 
-      <button onClick={handleDeleteTodo} className="w-6 h-6">
+      <button title='deleteTodo' onClick={handleDeleteTodo} className="w-6 h-6">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           fill="none"

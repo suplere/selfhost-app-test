@@ -2,21 +2,12 @@
 
 import Input from '@components/input'
 import SubmitButton from '@components/submit-button'
-import { NhostClient } from '@nhost/nhost-js'
+import { nhost } from '@utils/nhost-clientSide'
 import Cookies from 'js-cookie'
 import { useRouter } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
 
 const NHOST_SESSION_KEY = 'nhostSession'
-
-const nhost = new NhostClient({
-  // subdomain: process.env.NEXT_PUBLIC_NHOST_SUBDOMAIN || 'local',
-  // region: process.env.NEXT_PUBLIC_NHOST_REGION,
-  authUrl: process.env.NEXT_PUBLIC_AUTH_URL,
-  graphqlUrl: process.env.NEXT_PUBLIC_GRAPHQL_URL,
-  storageUrl: process.env.NEXT_PUBLIC_STORAGE_URL,
-  functionsUrl: process.env.NEXT_PUBLIC_FUNCTION_URL,
-})
 
 export default function SignUpWebAuthn() {
   const router = useRouter()

@@ -1,0 +1,24 @@
+name: Hasura migration
+on:
+  push:
+    branches:
+      - master
+jobs:
+  hasura_migration:
+    name: Hasura migration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+      - name: Install Hasura CLI
+        run: curl -L https://github.com/hasura/graphql-engine/raw/stable/cli/get.sh | bash
+      - name: Apply hasura migration
+        working-directory: packages/nhost-backend/nhost
+        run: |
+          hasura migrate apply --all-databases --skip-update-check --endpoint '${{ secrets.HASURA_ENDPOINT }}' --admin-secret '${{ secrets.HASURA_ADMIN_SECRET }}'   
+      - name: Apply hasura metadata
+        working-directory: packages/nhost-backend/nhost
+        run: |
+          hasura metadata apply --skip-update-check --endpoint '${{ secrets.HASURA_ENDPOINT }}' --admin-secret '${{ secrets.HASURA_ADMIN_SECRET }}'   
+
+      

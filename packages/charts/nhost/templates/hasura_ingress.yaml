@@ -1,0 +1,80 @@
+# Replace path with regex
+# apiVersion: traefik.io/v1alpha1
+# kind: Middleware
+# metadata:
+#   name: replacepathregex
+# spec:
+#   replacePathRegex:
+#     regex: /v1(/|$$)(.*)
+#     replacement: /v1/graphql$$2
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-graphql-ingress
+  annotations:
+    spec.ingressClassName: traefik
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # traefik.ingress.kubernetes.io/router.middlewares: {{ .Release.Name }}-replacepathregex@kubernetescrd
+spec:
+  rules:
+    - host: {{ .Release.Name }}.graphql.{{ .Values.domain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-hasura-service
+                port:
+                  number: {{ .Values.hasura.service.port }}             
+  tls:
+    - secretName: {{ .Release.Name }}-graphql-ingress-tls
+      hosts:
+        - {{ .Release.Name }}.{{ .Values.domain }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-hasura-ingress
+  annotations:
+    spec.ingressClassName: traefik
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  rules:
+    - host: {{ .Release.Name }}.hasura.{{ .Values.domain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-hasura-service
+                port:
+                  number: {{ .Values.hasura.service.port }}
+          # - path: /v2
+          #   pathType: Prefix
+          #   backend:
+          #     service:
+          #       name: {{ .Release.Name }}-hasura-service
+          #       port:
+          #         number: {{ .Values.hasura.service.port }}
+          # - path: /api/
+          #   pathType: Prefix
+          #   backend:
+          #     service:
+          #       name: {{ .Release.Name }}-hasura-service
+          #       port:
+          #         number: {{ .Values.hasura.service.port }}
+          # - path: /console/
+          #   pathType: Prefix
+          #   backend:
+          #     service:
+          #       name: {{ .Release.Name }}-hasura-service
+          #       port:
+          #         number: {{ .Values.hasura.service.port }}                        
+                 
+  tls:
+    - secretName: {{ .Release.Name }}-hasura-ingress-tls
+      hosts:
+        - {{ .Release.Name }}.hasura.{{ .Values.domain }}

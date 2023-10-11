@@ -1,0 +1,25 @@
+{{ if .Values.mailhog.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-mailhog-ingress
+  annotations:
+    spec.ingressClassName: traefik
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  rules:
+    - host: {{ .Release.Name }}.mailhog.{{ .Values.domain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-mailhog-service
+                port:
+                  number: {{ .Values.mailhog.service.port }}
+  tls:
+    - secretName: {{ .Release.Name }}-mailhog-ingress-tls
+      hosts:
+        - {{ .Release.Name }}.{{ .Values.domain }}
+{{ end }}

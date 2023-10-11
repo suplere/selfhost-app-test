@@ -1,0 +1,160 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-auth
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ .Release.Name }}-auth-service
+spec:
+  ports:
+  - protocol: {{ .Values.auth.service.protocol | default "TCP" }}
+    port: {{ .Values.auth.service.port }}
+    targetPort: {{ .Values.auth.service.targetPort }}
+    name: auth
+  selector:
+    app.kubernetes.io/name: {{ .Release.Name }}-auth
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-auth
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-auth
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-auth
+        app.kubernetes.io/name: {{ .Release.Name }}-auth
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: {{ .Release.Name }}-auth
+          image: {{ .Values.auth.container.image }}
+          ports:
+          - name: auth
+            containerPort: {{ .Values.auth.service.targetPort }}
+            protocol: {{ .Values.auth.service.protocol | default "TCP" }}
+          env:
+            {{- range $key, $val := .Values.auth.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+            - name: AUTH_PORT
+              value: {{ .Values.auth.service.targetPort | quote }}
+            - name : AUTH_SERVER_URL
+              value: https://{{ .Release.Name }}.auth.{{ .Values.domain }}  
+            # SMTP SETTING
+          {{ if .Values.mailhog.enabled }}
+            # mailhog enabled
+            - name: AUTH_SMTP_HOST
+              value: {{ .Release.Name }}-mailhog-smtp-service.{{ .Release.Name }}.svc.cluster.local
+            - name: AUTH_SMTP_PASS
+              value: {{ .Values.mailhog.env.SMTP_PASS | quote }}
+            - name: AUTH_SMTP_PORT
+              value: {{ .Values.mailhog.env.SMTP_PORT | quote }}
+            - name: AUTH_SMTP_SECURE
+              value: {{ .Values.mailhog.env.SMTP_SECURE | quote }}
+            - name: AUTH_SMTP_SENDER
+              value: {{ .Values.mailhog.env.SMTP_SENDER | quote }}
+            - name: AUTH_SMTP_USER
+              value: {{ .Values.mailhog.env.SMTP_USER | quote }}
+          {{ else }}
+            # own SMTP server
+            - name: AUTH_SMTP_HOST
+              value: {{ .Values.auth.smtp.env.AUTH_SMTP_HOST | quote }}
+            - name: AUTH_SMTP_PASS
+              value: {{ .Values.auth.smtp.env.AUTH_SMTP_PASS | quote }}
+            - name: AUTH_SMTP_PORT
+              value: {{ .Values.auth.smtp.env.AUTH_SMTP_PORT | quote }}
+            - name: AUTH_SMTP_SECURE
+              value: {{ .Values.auth.smtp.env.AUTH_SMTP_SECURE | quote }}
+            - name: AUTH_SMTP_SENDER
+              value: {{ .Values.auth.smtp.env.AUTH_SMTP_SENDER | quote }}
+            - name: AUTH_SMTP_USER
+              value: {{ .Values.auth.smtp.env.AUTH_SMTP_USER | quote }}
+          {{ end }}
+            # END SMTP Settings  
+            - name: HASURA_GRAPHQL_ADMIN_SECRET
+              value: {{ .Values.hasura.env.HASURA_GRAPHQL_ADMIN_SECRET | quote }}
+            - name: HASURA_GRAPHQL_DATABASE_URL
+              value: "postgres://{{ .Values.postgres.env.POSTGRES_USER }}:{{ .Values.postgres.env.POSTGRES_PASSWORD }}@{{ .Release.Name }}-postgres-service:{{ .Values.postgres.service.targetPort }}/{{ .Values.postgres.env.POSTGRES_DB | default .Release.Name }}"
+            - name: HASURA_GRAPHQL_GRAPHQL_URL
+              value: http://{{ .Release.Name }}-hasura-service:{{ .Values.hasura.service.port }}/v1/graphql
+            - name: HASURA_GRAPHQL_JWT_SECRET
+              value: '{"key":"{{ .Values.hasura.env.HASURA_GRAPHQL_JWT_SECRET_KEY }}","type":"{{ .Values.hasura.env.HASURA_GRAPHQL_JWT_SECRET_TYPE }}"}'
+            # APP ENV FOR ALL PARTS NHOST
+            - name: NHOST_ADMIN_SECRET
+              value: {{ .Values.hasura.env.HASURA_GRAPHQL_ADMIN_SECRET | quote }}
+            # NHOST PART URLS  
+            - name: NHOST_AUTH_URL
+              value: "https://{{ .Release.Name }}.auth.{{ .Values.domain }}"
+            - name: NHOST_BACKEND_URL
+              # value: "https://{{ .Release.Name }}.{{ .Values.domain }}"
+            - name: NHOST_FUNCTIONS_URL
+              value: "https://{{ .Release.Name }}.functions.{{ .Values.domain }}"
+            - name: NHOST_GRAPHQL_URL
+              value: "https://{{ .Release.Name }}.graphql.{{ .Values.domain }}"
+            - name: NHOST_HASURA_URL
+              value: "https://{{ .Release.Name }}.hasura.{{ .Values.domain }}"
+            - name: NHOST_STORAGE_URL
+              value: "https://{{ .Release.Name }}.storage.{{ .Values.domain }}"
+            - name: NHOST_JWT_SECRET
+              value: '{"key":"{{ .Values.hasura.env.HASURA_GRAPHQL_JWT_SECRET_KEY }}","type":"{{ .Values.hasura.env.HASURA_GRAPHQL_JWT_SECRET_TYPE }}"}'
+            - name: NHOST_REGION
+            - name: NHOST_SUBDOMAIN
+            - name: NHOST_WEBHOOK_SECRET
+              value: {{ .Values.hasura.env.NHOST_WEBHOOK_SECRET | quote }}
+            {{- range $key, $val := .Values.app.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}    
+          livenessProbe:
+            exec:
+              command:
+                - wget
+                - --spider
+                - -S
+                - http://localhost:4000/healthz
+            initialDelaySeconds: 60
+            periodSeconds: 5
+            timeoutSeconds: 60
+          resources: {}
+          volumeMounts:
+            - mountPath: /app/email-templates
+              name: auth-emails-template-config
+      restartPolicy: Always
+      initContainers:
+        - name: init-clone-repo
+          image: alpine/git
+          command: ["/bin/sh","-c"]
+          args: ["git clone https://{{ if .Values.git.private }}${GIT_USERNAME}:${GIT_PASSWORD}@{{ end }}{{ .Values.git.repo }} /usr/repo && cp -a /usr/repo{{ .Values.git.path }}/nhost/emails/* /usr/share"]    
+          imagePullPolicy: Always
+          env:
+          {{ if .Values.git.private }}
+          - name: GIT_USERNAME
+            valueFrom:
+              secretKeyRef:
+                key: username
+                name: {{ .Values.git.secretName }}
+          - name: GIT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: password
+                name: {{ .Values.git.secretName }}
+          {{ end }}      
+          volumeMounts:
+          - mountPath: /usr/share
+            name: auth-emails-template-config
+      volumes:
+      - name: auth-emails-template-config
+        emptyDir: {}
+status: {}

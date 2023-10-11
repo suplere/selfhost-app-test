@@ -1,0 +1,69 @@
+{{ if .Values.dashboard.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-dashboard
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ .Release.Name }}-dashboard-service
+spec:
+  ports:
+  - protocol: {{ .Values.dashboard.service.protocol | default "TCP" }}
+    port: {{ .Values.dashboard.service.port }}
+    targetPort: {{ .Values.dashboard.service.targetPort }}
+    name: auth
+  selector:
+    app.kubernetes.io/name: {{ .Release.Name }}-dashboard
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{ end }}    
+---
+{{ if .Values.dashboard.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-dashboard
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ .Release.Name }}-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-dashboard
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-dashboard
+        app.kubernetes.io/name: {{ .Release.Name }}-dashboard
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - image: {{ .Values.dashboard.container.image }}
+          name: {{ .Release.Name }}-dashboard
+          ports:
+          - name: dashboard
+            containerPort: {{ .Values.dashboard.service.targetPort }}
+            protocol: {{ .Values.dashboard.service.protocol | default "TCP" }}
+          
+          env:
+            - name: NEXT_PUBLIC_NHOST_ADMIN_SECRET
+              value: {{ .Values.hasura.env.HASURA_GRAPHQL_ADMIN_SECRET | quote }}
+            - name: NEXT_PUBLIC_NHOST_AUTH_URL
+              value: https://{{ .Release.Name }}.auth.{{ .Values.domain }}
+            - name: NEXT_PUBLIC_NHOST_FUNCTIONS_URL
+              value: https://{{ .Release.Name }}.functions.{{ .Values.domain }}
+            - name: NEXT_PUBLIC_NHOST_GRAPHQL_URL
+              value: https://{{ .Release.Name }}.graphql.{{ .Values.domain }}/v1/graphql
+            - name: NEXT_PUBLIC_NHOST_STORAGE_URL
+              value: https://{{ .Release.Name }}.storage.{{ .Values.domain }}/v1
+            - name: NEXT_PUBLIC_NHOST_HASURA_API_URL
+              value: https://{{ .Release.Name }}.hasura.{{ .Values.domain }}
+            - name: NEXT_PUBLIC_NHOST_HASURA_CONSOLE_URL
+              value: https://{{ .Release.Name }}.hasura.{{ .Values.domain }}/console
+            - name: NEXT_PUBLIC_NHOST_HASURA_MIGRATIONS_API_URL
+              value: https://{{ .Release.Name }}.hasura.{{ .Values.domain }}/v1/migrations         
+          resources: {}
+      restartPolicy: Always
+status: {}
+{{ end }}

@@ -1,0 +1,143 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-hasura
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ .Release.Name }}-hasura-service
+spec:
+  ports:
+  - protocol: {{ .Values.hasura.service.protocol | default "TCP" }}
+    port: {{ .Values.hasura.service.port }}
+    targetPort: {{ .Values.hasura.service.targetPort }}
+  selector:
+    app.kubernetes.io/name: {{ .Release.Name }}-hasura
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-graphql
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ .Release.Name }}-graphql-service
+spec:
+  ports:
+  - protocol: {{ .Values.hasura.service.protocol | default "TCP" }}
+    port: {{ .Values.hasura.service.port }}
+    targetPort: {{ .Values.hasura.service.targetPort }}
+  selector:
+    app.kubernetes.io/name: {{ .Release.Name }}-graphql
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-hasura
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ .Release.Name }}-hasura
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-hasura
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-hasura
+        app.kubernetes.io/name: {{ .Release.Name }}-hasura
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+      - image: hasura/graphql-engine:{{ .Values.hasura.container.tag }}
+        imagePullPolicy: IfNotPresent
+        name: {{ .Release.Name }}-hasura
+        ports:
+          - name: http
+            containerPort: {{ .Values.hasura.service.targetPort }}
+            protocol: {{ .Values.hasura.service.protocol | default "TCP" }}
+        env:
+          - name: HASURA_GRAPHQL_DATABASE_URL
+            value: "postgres://{{ .Values.postgres.env.POSTGRES_USER }}:{{ .Values.postgres.env.POSTGRES_PASSWORD }}@{{ .Release.Name }}-postgres-service:{{ .Values.postgres.service.targetPort }}/{{ .Values.postgres.env.POSTGRES_DB | default .Release.Name }}"
+          ## enable the console served by server
+          - name: HASURA_GRAPHQL_ENABLE_CONSOLE
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_ENABLE_CONSOLE | quote }}
+          # # enable debugging mode. It is recommended to disable this in production
+          - name: HASURA_GRAPHQL_DEV_MODE
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_DEV_MODE | quote }}
+          - name: HASURA_GRAPHQL_ADMIN_INTERNAL_ERRORS
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_ADMIN_INTERNAL_ERRORS | quote }}
+          - name: HASURA_GRAPHQL_ADMIN_SECRET
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_ADMIN_SECRET | quote }}
+          - name: HASURA_GRAPHQL_CONSOLE_ASSETS_DIR
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_CONSOLE_ASSETS_DIR | quote }}
+          - name: HASURA_GRAPHQL_CORS_DOMAIN
+            value: "*"
+          - name: HASURA_GRAPHQL_DISABLE_CORS
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_DISABLE_CORS | quote }}
+          - name: HASURA_GRAPHQL_ENABLED_APIS
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_ENABLED_APIS | quote }}
+          - name: HASURA_GRAPHQL_ENABLED_LOG_TYPES
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_ENABLED_LOG_TYPES | quote }}
+          - name: HASURA_GRAPHQL_ENABLE_ALLOWLIST
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_ENABLE_ALLOWLIST | quote }}
+          - name: HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS | quote }}
+          - name: HASURA_GRAPHQL_ENABLE_TELEMETRY
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_ENABLE_TELEMETRY | quote }}
+          - name: HASURA_GRAPHQL_EVENTS_HTTP_POOL_SIZE
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_EVENTS_HTTP_POOL_SIZE | quote }}
+          - name: HASURA_GRAPHQL_JWT_SECRET
+            value: '{"key":"{{ .Values.hasura.env.HASURA_GRAPHQL_JWT_SECRET_KEY }}","type":"{{ .Values.hasura.env.HASURA_GRAPHQL_JWT_SECRET_TYPE }}"}'
+          - name: HASURA_GRAPHQL_LIVE_QUERIES_MULTIPLEXED_BATCH_SIZE
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_LIVE_QUERIES_MULTIPLEXED_BATCH_SIZE | quote }}
+          - name: HASURA_GRAPHQL_LIVE_QUERIES_MULTIPLEXED_REFETCH_INTERVAL
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_LIVE_QUERIES_MULTIPLEXED_REFETCH_INTERVAL | quote }}
+          - name: HASURA_GRAPHQL_LOG_LEVEL
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_LOG_LEVEL | quote }}
+          - name: HASURA_GRAPHQL_STRINGIFY_NUMERIC_TYPES
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_STRINGIFY_NUMERIC_TYPES | quote }}
+          - name: HASURA_GRAPHQL_UNAUTHORIZED_ROLE
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_UNAUTHORIZED_ROLE | quote }}
+          - name: HASURA_GRAPHQL_WS_READ_COOKIE
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_WS_READ_COOKIE | quote }}
+          #- name: JOILMAIL_BASE_URL
+          #  value: https://jolimail.supler.eu/templates
+          #- name: JOILMAIL_JWT_SECRET
+          #  value: ddfdkfjkjjkoeqwpeqiem,ncmxzncmndmfndasdallw
+          # APP ENV FOR ALL PARTS NHOST
+          - name: NHOST_ADMIN_SECRET
+            value: {{ .Values.hasura.env.HASURA_GRAPHQL_ADMIN_SECRET | quote }}
+          # NHOST PART URLS  
+          - name: NHOST_AUTH_URL
+            value: "https://{{ .Release.Name }}.auth.{{ .Values.domain }}"
+          - name: NHOST_BACKEND_URL
+            # value: "https://{{ .Release.Name }}.{{ .Values.domain }}"
+          - name: NHOST_FUNCTIONS_URL
+            value: "https://{{ .Release.Name }}.functions.{{ .Values.domain }}"
+          - name: NHOST_GRAPHQL_URL
+            value: "https://{{ .Release.Name }}.graphql.{{ .Values.domain }}"
+          - name: NHOST_HASURA_URL
+            value: "https://{{ .Release.Name }}.hasura.{{ .Values.domain }}"
+          - name: NHOST_STORAGE_URL
+            value: "https://{{ .Release.Name }}.storage.{{ .Values.domain }}"
+          - name: NHOST_JWT_SECRET
+            value: '{"key":"{{ .Values.hasura.env.HASURA_GRAPHQL_JWT_SECRET_KEY }}","type":"{{ .Values.hasura.env.HASURA_GRAPHQL_JWT_SECRET_TYPE }}"}'
+          - name: NHOST_REGION
+          - name: NHOST_SUBDOMAIN
+          - name: NHOST_WEBHOOK_SECRET
+            value: {{ .Values.hasura.env.NHOST_WEBHOOK_SECRET | quote }}
+          {{- range $key, $val := .Values.app.env }}
+          - name: {{ $key }}
+            value: {{ $val | quote }}
+          {{- end }}    
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+        resources: {}

@@ -1,10 +1,8 @@
-'use client'
-
 import { NhostClient } from "@nhost/nhost-js"
-import { getConfig} from "./nhost"
+import { getNhostConfig } from "./helpers"
 
 const nhost = new NhostClient({
-  ...getConfig()
+  ...getNhostConfig()
 })
 
 export { nhost }

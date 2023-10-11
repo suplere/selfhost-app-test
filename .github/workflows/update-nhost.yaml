@@ -2,7 +2,7 @@ name: Hasura migration
 on:
   push:
     branches:
-      - master
+      - main
 jobs:
   hasura_migration:
     name: Hasura migration
